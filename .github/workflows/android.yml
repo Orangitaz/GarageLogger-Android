@@ -12,6 +12,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Get the Garage Log app
+        uses: actions/checkout@v4
+        with:
+          repository: Orangitaz/GarageLogger
+          ref: main
+          path: app
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -23,16 +30,24 @@ jobs:
 
       - name: Read version
         id: ver
-        run: echo "v=$(tr -d '[:space:]' < VERSION)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "v=$(tr -d '[:space:]' < app/VERSION)" >> "$GITHUB_OUTPUT"
+          echo "b=$(git -C app rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Bundle the app
+        run: |
+          mkdir -p www
+          sed -e "s/__VERSION__/${{ steps.ver.outputs.v }}/" -e "s/__BUILD__/${{ steps.ver.outputs.b }}/" app/index.html > www/index.html
+          grep -c "Capacitor" www/index.html
 
       - name: Create Android project
         run: |
           npm init -y >/dev/null
-          npm install --no-audit --no-fund @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6
+          npm install --no-audit --no-fund @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6 @capacitor/filesystem@6 @capacitor/share@6
           npx cap add android
           npx cap sync android
 
-      - name: Set version, icon and colours
+      - name: Set version, icon and network settings
         run: |
           V="${{ steps.ver.outputs.v }}"
           sed -i "s/versionCode 1/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"$V\"/" android/app/build.gradle
@@ -45,6 +60,9 @@ jobs:
           done
           mkdir -p android/app/src/main/res/values
           printf '<?xml version="1.0" encoding="utf-8"?>\n<resources><color name="ic_launcher_background">#06080C</color></resources>\n' > android/app/src/main/res/values/ic_launcher_background.xml
+          M=android/app/src/main/AndroidManifest.xml
+          grep -q usesCleartextTraffic "$M" || sed -i 's/<application/<application android:usesCleartextTraffic="true"/' "$M"
+          grep -n "usesCleartextTraffic\|INTERNET" "$M"
 
       - name: Use fixed signing key
         run: |
@@ -56,8 +74,7 @@ jobs:
         run: ./gradlew --no-daemon assembleDebug
 
       - name: Name the APK
-        run: |
-          cp android/app/build/outputs/apk/debug/app-debug.apk "garage-log-${{ steps.ver.outputs.v }}.apk"
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk "garage-log-${{ steps.ver.outputs.v }}.apk"
 
       - uses: actions/upload-artifact@v4
         with:
