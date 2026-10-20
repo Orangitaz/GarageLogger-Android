@@ -1,10 +1,17 @@
 name: Build Android APK
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Rebuild and replace the release even if this version is already published"
+        type: boolean
+        default: false
+  schedule:
+    - cron: "17 */6 * * *"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   apk:
@@ -34,13 +41,34 @@ jobs:
           echo "v=$(tr -d '[:space:]' < app/VERSION)" >> "$GITHUB_OUTPUT"
           echo "b=$(git -C app rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
 
+      - name: Is this version already published?
+        id: chk
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          V="${{ steps.ver.outputs.v }}"
+          if gh release view "v$V" >/dev/null 2>&1; then
+            if [ "$FORCE" = "true" ]; then
+              gh release delete "v$V" --yes
+              echo "skip=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "Version $V already published - nothing to do."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Bundle the app
+        if: steps.chk.outputs.skip != 'true'
         run: |
           mkdir -p www
           sed -e "s/__VERSION__/${{ steps.ver.outputs.v }}/" -e "s/__BUILD__/${{ steps.ver.outputs.b }}/" app/index.html > www/index.html
           grep -c "Capacitor" www/index.html
 
       - name: Create Android project
+        if: steps.chk.outputs.skip != 'true'
         run: |
           npm init -y >/dev/null
           npm install --no-audit --no-fund @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6 @capacitor/filesystem@6 @capacitor/share@6
@@ -48,6 +76,7 @@ jobs:
           npx cap sync android
 
       - name: Set version, icon and network settings
+        if: steps.chk.outputs.skip != 'true'
         run: |
           V="${{ steps.ver.outputs.v }}"
           sed -i "s/versionCode 1/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"$V\"/" android/app/build.gradle
@@ -65,19 +94,27 @@ jobs:
           grep -n "usesCleartextTraffic\|INTERNET" "$M"
 
       - name: Use fixed signing key
+        if: steps.chk.outputs.skip != 'true'
         run: |
           mkdir -p ~/.android
           cp debug.keystore ~/.android/debug.keystore
 
       - name: Build APK
+        if: steps.chk.outputs.skip != 'true'
         working-directory: android
         run: ./gradlew --no-daemon assembleDebug
 
       - name: Name the APK
+        if: steps.chk.outputs.skip != 'true'
         run: cp android/app/build/outputs/apk/debug/app-debug.apk "garage-log-${{ steps.ver.outputs.v }}.apk"
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: garage-log-apk
-          path: garage-log-*.apk
-          if-no-files-found: error
+      - name: Publish the release
+        if: steps.chk.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V="${{ steps.ver.outputs.v }}"
+          cp "garage-log-$V.apk" garage-log.apk
+          awk -v v="$V" '/^## /{p=($2==v)} p' app/CHANGELOG.md | tail -n +2 > notes.md
+          [ -s notes.md ] || echo "Garage Log $V" > notes.md
+          gh release create "v$V" garage-log.apk "garage-log-$V.apk" --title "Garage Log $V" --notes-file notes.md --latest
