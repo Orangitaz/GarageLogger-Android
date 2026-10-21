@@ -102,7 +102,15 @@ jobs:
       - name: Build APK
         if: steps.chk.outputs.skip != 'true'
         working-directory: android
-        run: ./gradlew --no-daemon assembleDebug
+        run: |
+          set +e
+          ./gradlew --no-daemon assembleDebug > ../gradle.log 2>&1
+          rc=$?
+          if [ $rc -ne 0 ]; then
+            M=$(grep -E -A12 "What went wrong|error:|FAILED" ../gradle.log | head -40 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=Gradle failed::$M"
+          fi
+          exit $rc
 
       - name: Name the APK
         if: steps.chk.outputs.skip != 'true'
