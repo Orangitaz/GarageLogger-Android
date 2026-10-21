@@ -114,7 +114,9 @@ jobs:
 
       - name: Name the APK
         if: steps.chk.outputs.skip != 'true'
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk "garage-log-${{ steps.ver.outputs.v }}.apk"
+        run: |
+          V="${{ steps.ver.outputs.v }}"
+          cp android/app/build/outputs/apk/debug/app-debug.apk "garage-log-${V//./_}.apk"
 
       - name: Publish the release
         if: steps.chk.outputs.skip != 'true'
@@ -122,7 +124,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           V="${{ steps.ver.outputs.v }}"
-          cp "garage-log-$V.apk" garage-log.apk
+          N="garage-log-${V//./_}.apk"
+          cp "$N" garage-log.apk
           awk -v v="$V" '/^## /{p=($2==v)} p' app/CHANGELOG.md | tail -n +2 > notes.md
           [ -s notes.md ] || echo "Garage Log $V" > notes.md
-          gh release create "v$V" garage-log.apk "garage-log-$V.apk" --title "Garage Log $V" --notes-file notes.md --latest
+          gh release create "v$V" garage-log.apk "$N" --title "Garage Log $V" --notes-file notes.md --latest
