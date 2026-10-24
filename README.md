@@ -1,5 +1,11 @@
 # Garage Log – Android
 
+<p>
+<img src="https://raw.githubusercontent.com/Orangitaz/GarageLogger/main/screenshots/garage.png" width="31%" alt="My Garage">
+<img src="https://raw.githubusercontent.com/Orangitaz/GarageLogger/main/screenshots/dashboard.png" width="31%" alt="Equipment dashboard">
+<img src="https://raw.githubusercontent.com/Orangitaz/GarageLogger/main/screenshots/attention.png" width="31%" alt="Needs attention">
+</p>
+
 The [Garage Log](https://github.com/Orangitaz/GarageLogger) app packaged as an Android app. **It works on its own, with no server:** your data stays on the phone. If you also run Garage Log on a server (for example on TrueNAS), enter its address under **Settings & data > Server** and the phone syncs with it and with your other devices.
 
 Without a server the phone can't send reminder alerts, check recalls, store documents or offer a calendar link, since those run on the server. Backups, CSV and service history go to the Android share sheet so you can save or send them.
