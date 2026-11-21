@@ -67,6 +67,7 @@ jobs:
           sed -e "s/__VERSION__/${{ steps.ver.outputs.v }}/g" -e "s/__BUILD__/${{ steps.ver.outputs.b }}/g" app/index.html > www/index.html
           # Since Garage Log 1.24.0 the page loads its code and styles from separate files next to it.
           for f in app.js lib.js app.css; do [ -f "app/public/$f" ] && cp "app/public/$f" "www/$f"; done
+          [ -d app/public/images ] && cp -r app/public/images www/images
           cat www/index.html www/*.js | grep -c "Capacitor"
           ls -l www
           ! grep -rq "__VERSION__\|__BUILD__" www || { echo "A version placeholder was left in the bundle"; exit 1; }
